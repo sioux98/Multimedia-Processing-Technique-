@@ -1,0 +1,34 @@
+Fast R-CNN
+
+Before explaining Fast R-CNN, let me briefly introduce R-CNN, the previous version of Fast R-CNN. R-CNN is the first object detection method using convolutional neural network (CNN). Compared to the previous methods, the performance was improved a lot, but there were some fatal drawbacks.
+ First, in order to use AlexNet as it is, the image was forcibly warped to a size of 244x244, so there was a performance loss due to image deformation.
+ Second, it took a very long time for training and testing by putting all 2000 image proposal candidates selected through Selective Search into the CNN model.
+ Third, Selective Search or SVM was not a suitable structure to use GPU.
+ Fourth, there was a problem that the computation performed in the latter part was not shared.
+Fast R-CNN focused on solving these shortcomings and introduced a faster and better performing object detection method.
+
+Now to introduce Fast R-CNN, Fast R-CNN is a fast framework for efficiently classifying object proposals using deep convolutional network methods. Fast R-CNN has several improvements to increase detection accuracy while improving training and testing speed.
+ 1) R-CNN performs CNN calculations for each RoI, resulting in speed degradation, and has limitations in that it cannot train the model at once as it is a multi-stage pipelines. Fast R-CNN overcomes the following limitations by learning from one model from RoI pooling and CNN feature extraction to classification and bounding box regression.
+ 2) Fast R-CNN trains very deep VGG16 networks 9 times faster than conventional R-CNN and tests 213 times faster. Compared to SPPnet, Fast R-CNN trains VGG16 3x faster, tests 10x faster, and is more accurate. Fast R-CNN is implemented in python and C++ and is available through the open source MIT license.
+
+To explain the implementation process of Fast R-CNN
+ First, like R-CNN, RoI is found through Selective Search, and the entire image is passed through the CNN to extract the feature map.
+ Second, the ROI found by Selective Search is projected according to the size of the feature map.
+ Third, RoI pooling is performed on the projected RoI to obtain a fixed size feature vector.
+ Fourth, the feature vector passes through the FC layer and is divided into two branches.
+ One of them performs object classification for RoI through softmax, and adjusts the position of the box found by selective search through bounding box regression.
+ The most important thing here is RoI pooling. In R-CNN, the CNN ouput had to be input to the FC layer, so the CNN input had to be set to the same size. Therefore, the ROI extracted from the image was adjusted to the same size through crop and warp. However, in reality, the input of the FC layer is fixed, and the CNN input is not. Therefore, CNN can be entered as an input regardless of the input image, size, or ratio, and it is only necessary to adjust the size when entering the input of the FC layer.
+ Spatial Pyramid Pooling (SPP) is proposed here. In SPP, the image is first passed through the CNN to extract the feature map. Then, the feature map is divided into pyramids of 4x4, 2x2, and 1x1 areas. One cell of the pyramid is called a bin, and max pooling is applied within each bin to extract one value for each bin, and finally extract the max value as much as the size of the pyramid. create a vector of To summarize, there are three pyramids 4x4, 2x2, and 1x1, and max pooling is applied to extract max values ​​according to the size of each pyramid. A vector of a fixed size is created by concatenating the max values ​​extracted from each pyramid, and this enters the input of the FC layer. Therefore, we generate 2,000 region proposals from the feature map that has passed through the CNN and insert each region proposal into the SPPNet to obtain a feature vector with a fixed size. Through this work, the 2,000 CNN operations that had to be performed for every 2,000 region proposals were reduced to one.
+
+The process of creating a feature vector of a fixed size with pyramid SPP applied in Fast R-CNN is called RoI Pooling.
+RoI Pooling first passes the original image through the CNN model to obtain a feature map. At the same time, region proposals are obtained by applying a selective search algorithm to the original image. We then extract the regions corresponding to each region proposals from the feature map. This process is done through RoI Projection. Region proposals obtained through selective search are not subjected to sub-sampling, while feature maps in the original image undergo sub-sampling several times to reduce their size. In order to find the part encoded by the region proposals in the reduced feature map, a process of projecting the region proposals to the reduced feature map is necessary. This is possible by changing the size and centroid coordinates of the region proposal according to the sub-sampling ratio. The extracted RoI feature map is divided into girds according to the size of the specified sub-window, and max pooling is performed for each cell in the grid to obtain a feature map of a fixed size. Since max pooling is performed in a sub-window of a pre-specified size as follows, it is possible to obtain a feature map of a fixed size even if the size of the region proposal is different.
+ The following is a problem that had to train three models separately due to the multi-stage pipeline, which is a problem with R-CNN. In R-CNN, calculations are not shared because they are forwarded into different models, such as SVM, bounding box regression, and forward after passing through CNN. I could. Therefore, the same data can be shared with softmax (classification) and bbox regression. This means that the model can now be trained end-to-end at once.
+The Loss function of Fast R-CNN is a combination of classifiaciton and localization loss, and both can be trained in one training.
+
+
+
+ In conclusion, Fast R-CNN can be achieved by adding one RoI Pooling
+1) Region proposal computation after CNN - We developed 2000 CNN computations into one CNN computation.
+2) Since the changed feature vector is calculated after projection calculation of the existing region proposal, classification and bbox regression were also able to learn from the output.
+However, in Fast R-CNN, like R-CNN, the selective search algorithm that generates RoI is performed outside the CNN, so this part is the bottle neck of speed.
+Therefore, even this RoI generation is done inside the CNN, which leads to the development of a Faster R-CNN that generates faster and more accurate region proposals.
